@@ -1,6 +1,8 @@
 # Merge these keys into ~/.codex/config.toml.
-# If this table already exists, do not create it twice.
-[features.multi_agent_v2]
-enabled = true
-hide_spawn_agent_metadata = false
-max_concurrent_threads_per_session = 4
+# If either table already exists, add the key there instead of duplicating it.
+[features]
+multi_agent = true
+
+[agents]
+max_threads = 4
+max_depth = 1
