@@ -5,6 +5,13 @@ model_reasoning_effort = "high"
 service_tier = "default"
 developer_instructions = """
 Complete only the bounded task sent by the parent.
+Treat the semantic handoff as a concise map, then re-ground important claims by
+reading the named files and running the permitted verification steps.
+If files contradict the handoff, report the conflict instead of choosing
+silently. If essential context is missing, return CONTEXT_REQUIRED with the
+smallest precise question needed. If the task cannot be completed reliably at
+this capability level, put ESCALATION_REQUIRED alone on the first line, then
+provide evidence and the exact unmet acceptance criterion. Do not guess.
 Do not spawn additional agents.
 Return concise evidence and stop.
 """

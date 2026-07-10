@@ -7,8 +7,8 @@ This project contains no executable code. It uses three declarative files:
 
 - `config.toml.snippet` sets stable concurrency and recursion limits.
 - `agents/default.toml` overrides Codex's default child with Terra High.
-- `AGENTS.md.snippet` requires context-light spawning and approval before
-  escalation.
+- `AGENTS.md.snippet` replaces raw-history forks with structured semantic
+  handoffs and requires approval before escalation.
 
 ## Why this design
 
@@ -62,8 +62,23 @@ written policy also limits one user turn to four distinct children, including
 replacements.
 
 Because `fork_turns="none"` starts a clean child context, the root must send a
-self-contained task capsule containing the objective, relevant paths,
-constraints, expected output, and verification criteria.
+self-contained semantic handoff. It summarizes the useful state of the parent
+thread while removing raw tool calls, superseded intermediate output, repeated
+file contents, conversational filler, and unrelated history.
+
+The handoff preserves:
+
+- the objective and current state;
+- binding decisions and rejected alternatives that still matter;
+- relevant files, evidence, and exact task-affecting errors;
+- constraints, known failures, and unresolved questions;
+- the child's assignment, required output, and acceptance criteria.
+
+The child re-reads named files before relying on the summary. Missing context is
+sent to the same child as a small delta so its own thread remains continuous.
+For rare tasks where recent dialogue cannot be summarized faithfully, the root
+may fork at most the last three turns and must explain why. Full-history forks
+still require explicit approval.
 
 ## End-to-end validation
 
@@ -85,6 +100,32 @@ run, but Codex does not echo service tier in its rollout metadata, so that field
 was not independently observed in the recorded trace. The three-child ceiling
 comes from Codex's stable `agents.max_threads` enforcement; the test did not
 deliberately saturate all slots and waste three extra child calls.
+
+### Semantic-handoff scenario suite
+
+A second isolated test kept one SOL Ultra parent alive for five turns, included
+real tool output in its history, and spawned three separate Terra High children.
+
+| Trouble scenario | Result |
+| --- | --- |
+| Noisy history | The parent read 30 garbage log lines plus one useful receipt. The clean child recovered three conversation-only facts and the verified file state; its rollout contained zero garbage markers. |
+| Stale decisions | The child re-read conflicting decision history and current config, selected PostgreSQL/NATS, and explicitly marked SQLite superseded. |
+| Capability escalation | A test-only canary forced Terra to return `ESCALATION_REQUIRED`. SOL Ultra stopped, asked for explicit takeover approval, and did no challenge work. After a new user turn sent `APPROVE_SOL_ULTRA_TAKEOVER`, the same root completed locally without spawning another child. |
+
+All three child rollouts recorded `gpt-5.6-terra`, `high`, and all three parent
+spawn calls recorded `fork_turns="none"`. There were exactly four threads: one
+SOL Ultra root and three direct children. No grandchild was created.
+
+The suite logged 271,835 input tokens across the root and children, of which
+215,040 were cached, plus 4,909 output tokens. These are trace volumes, not a
+known conversion to the five-hour allowance. Later child rollouts stayed small
+and contained none of the accumulated parent garbage, but an exact allowance
+savings percentage remains unobservable.
+
+The CLI approval was a real plain-text stop/resume prompt, not a button. Codex
+surfaces that expose structured user input may render choices, but the
+workaround does not depend on buttons. The shipped agent does not contain the
+test-only forced-escalation canary.
 
 ## Security and privacy
 
@@ -109,10 +150,14 @@ restrict them further.
 - The hard limit is three concurrent children. The four-distinct-children per
   turn limit remains written guidance.
 - The reserved spawn schema does not currently permit a per-call model upgrade.
-  If Terra is insufficient, the policy asks before the SOL Ultra root takes the
-  work back or before the user changes agent configuration.
+  If Terra is insufficient, the policy stops and asks before the SOL Ultra root
+  takes the work back or before the user changes agent configuration. The
+  original task request does not count as escalation approval.
 - Approval buttons depend on the current Codex surface and mode; plain-text
   confirmation is the fallback.
+- The scenario suite was synthetic and deterministic. It validates routing,
+  context filtering, stale-decision handling, and approval gating, but it is not
+  proof of outcome parity on every long-running production task.
 - Model availability and custom-agent behavior can change across Codex builds.
 
 ## Uninstall
