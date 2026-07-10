@@ -1,173 +1,326 @@
 # SOL Ultra Workaround
 
-A small, temporary workaround for Codex sessions where a SOL Ultra root can
-spawn equally expensive children and fork the full conversation into each one.
+An experimental, reversible Codex 0.144 workaround for keeping SOL Ultra
+subagent use more predictable.
 
-This project contains no executable code. It uses three declarative files:
+It gives an opt-in SOL Ultra root a Terra High default child, asks the root to
+keep delegation to three active children (four distinct children per turn at
+most), and asks it to send concise semantic handoffs instead of full-history
+forks.
 
-- `config.toml.snippet` sets stable concurrency and recursion limits.
-- `agents/default.toml` overrides Codex's default child with Terra High.
-- `AGENTS.md.snippet` replaces raw-history forks with structured semantic
-  handoffs and requires approval before escalation.
+This is an unofficial configuration workaround, not a billing boundary or an
+OpenAI-supported quota control.
 
-## Why this design
+## One-prompt install
 
-Codex 0.144 has local code for per-spawn model and reasoning overrides, but the
-SOL backend reserves the `collaboration.spawn_agent` tool schema. Exposing the
-hidden fields causes the request to fail before the model runs:
+Send this one line to Codex:
 
 ```text
-Function 'collaboration.spawn_agent' is reserved for use by this model and
-must match the configured schema.
+Clone https://github.com/carltonawong/sol-ultra-workaround temporarily, check out v0.2.0, read and follow INSTALL.md, inspect the small platform installer, then install it for my current Codex surface.
 ```
 
-This workaround leaves that schema untouched. Codex officially supports custom
-agents that override normal session settings, and a custom agent named
-`default` replaces the built-in fallback used for ordinary child spawns.
+Codex will read [`INSTALL.md`](INSTALL.md), choose profile mode for CLI or
+project mode for Desktop/IDE, run the shipped installer, verify the
+installation, and return the one launch/restart step. If the current project
+cannot be safely isolated or the Codex version is unverified, it stops instead
+of touching global settings.
 
-- [Official custom-agent documentation](https://learn.chatgpt.com/docs/agent-configuration/subagents#custom-agents)
-- [Official configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference#configtoml)
-- [Codex 0.144 spawn handler](https://github.com/openai/codex/blob/rust-v0.144.0/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
+## Does it meaningfully reduce usage?
+
+Yes, on the child side, with two separate effects:
+
+1. OpenAI's current Codex rate card assigns Terra exactly half the credits per
+   million input, cached-input, and output tokens compared with Sol. Holding
+   token volume constant, routing a child from Sol to Terra cuts that child's
+   published credit cost by 50%.
+2. A non-full fork (`fork_turns="none"` in V2 or `fork_context=false` in V1)
+   prevents the parent transcript and raw tool history from becoming the
+   child's starting context. The semantic handoff sends only the state needed
+   for that assignment.
+
+In the real long-running task that motivated this workaround, 39 direct child
+rollouts were audited:
+
+| Recorded child activity | Result |
+| --- | ---: |
+| Children | 39 |
+| Model and reasoning | 39 x `gpt-5.6-sol`, `ultra` |
+| Cumulative input tokens | 4,860,010,375 |
+| Cached input tokens | 4,748,019,200 (97.7%) |
+| Output tokens | 13,563,958 |
+
+At the published rate-card ratio, the same token mix on Terra would consume
+50% fewer child credits. That is a model-only inference, not a replay: Terra may
+use a different number of tokens, and Codex does not expose an exact conversion
+from a task trace to the five-hour allowance.
+
+This reduces inherited starting context, but its net token savings have not
+been isolated as a single percentage. The potential benefit grows with the
+size of the parent task and number of children. The SOL Ultra root still
+consumes SOL Ultra usage, and each child still carries its own system, tool,
+skill, and growing task context.
+
+- [Official Codex pricing and token-credit rates](https://learn.chatgpt.com/docs/pricing#what-are-tokens-and-credits)
+- [Official Codex usage-limit explanation](https://learn.chatgpt.com/docs/pricing#what-are-the-usage-limits-for-my-plan)
+
+## Scope: no global default override
+
+The first prototype installed `~/.codex/agents/default.toml`. That affected
+unnamed child spawns from every parent model, so it is no longer the recommended
+design. The current installer detects that global file and stops; users of the
+old prototype must review and remove its manual global edits before installing
+this scoped version.
+
+The current design is additive:
+
+- **CLI:** an explicit `sol-ultra` profile. Normal launches are untouched.
+- **Codex Desktop and IDE extension:** a dedicated project-local
+  configuration. Other projects are untouched; new tasks in that configured
+  project are pinned to the SOL Ultra setup unless the user overrides it.
+
+The installed footprint is two TOML files plus a tiny local hash manifest,
+totaling less than 4 KB. Nothing runs in the background after installation.
+
+Codex 0.144 has no supported runtime condition meaning "apply this default
+agent only if the current parent is SOL Ultra." Profiles provide opt-in CLI
+scoping; project configuration provides directory scoping for Desktop/IDE.
 
 ## Install
 
-Tested with Codex CLI 0.144.0. Fully quit and restart Codex after installing,
-then start a new task.
+The installers refuse to overwrite any existing file. Because the workaround
+does not modify the user's base `config.toml`, global `AGENTS.md`, or global
+`agents/default.toml`, uninstall does not need to restore them.
 
-1. Merge `config.toml.snippet` into `~/.codex/config.toml`.
-2. Copy `agents/default.toml` to `~/.codex/agents/default.toml`.
-3. Append `AGENTS.md.snippet` to `~/.codex/AGENTS.md`.
+Codex still needs normal permission to clone/read the repository and write the
+three new target files. The installer performs no network request itself.
 
-Do not create duplicate `[features]` or `[agents]` TOML tables. Add the keys to
-an existing table when one is already present.
+### CLI profile — recommended
 
-Do not overwrite an existing `~/.codex/agents/default.toml`. Review it and
-merge the model settings manually, or install this workaround only inside one
-trusted project using `.codex/agents/default.toml` and project-scoped config.
+Windows PowerShell:
+
+```powershell
+./install.ps1
+codex --profile sol-ultra
+```
+
+macOS or Linux:
+
+```sh
+./install.sh
+codex --profile sol-ultra
+```
+
+The installer adds only:
+
+```text
+~/.codex/sol-ultra.config.toml
+~/.codex/sol-ultra-workaround/terra-high.toml
+~/.codex/sol-ultra-workaround/install-state.txt
+```
+
+Normal `codex` launches do not load those files. Use `--profile sol-ultra` on
+every new or resumed CLI task that should use the workaround. A project-local
+`.codex/config.toml` has higher precedence and may defeat the profile; the
+one-prompt installer stops if the current project has that conflict.
+
+### Codex Desktop or IDE project mode
+
+Desktop and the IDE extension do not expose the CLI profile selector. Install
+only into a dedicated trusted project that should default to SOL Ultra:
+
+```powershell
+./install.ps1 -Mode project -ProjectRoot C:\path\to\project
+```
+
+```sh
+./install.sh project /path/to/project
+```
+
+Project mode refuses an existing `.codex/config.toml` or
+`.codex/agents/default.toml`, the user's home directory, and the downloaded
+package checkout instead of merging, overwriting, or broadening scope. It adds
+only:
+
+```text
+<project>/.codex/config.toml
+<project>/.codex/sol-ultra-workaround/terra-high.toml
+<project>/.codex/sol-ultra-workaround/install-state.txt
+```
+
+Fully quit Codex or stop the IDE extension backend, restart it, and open that
+project.
+
+## Existing tasks
+
+New tasks are the safest choice on Codex 0.144 because the complete profile
+policy is guaranteed to load at task creation.
+
+Existing tasks can still use the routing change:
+
+- fully stop and restart the Codex backend first;
+- CLI: resume with
+  `codex resume --profile sol-ultra <SESSION_ID_OR_NAME>`;
+- Desktop/IDE: resume from a project containing the project-mode configuration;
+- only newly spawned, compliant default-role children using a non-full fork are
+  routed to Terra High. Existing children, named roles, and full-history forks
+  keep or can inherit other settings.
+
+An isolated 0.144 test applied equivalent child routing and fresh AGENTS
+guidance to a task created before installation. After a cold restart, the same
+task resumed and its next child recorded `gpt-5.6-terra` with `high` reasoning.
+That proves newly spawned children can change after a cold resume; it does not
+remove the developer-instruction caveat below.
+
+There is one version-specific caveat: plain `developer_instructions` changes
+are not guaranteed to become model-visible when an old 0.144 task resumes. A
+fresh task avoids that bug. If resuming is essential, explicitly remind the
+root to use the semantic-handoff and approval policy; the child routing itself
+was verified after resume.
 
 ## Effective policy
 
-The default child runs with:
+When the profile or dedicated project configuration is active:
 
 ```text
-model: gpt-5.6-terra
-reasoning: high
-service tier: default
-fork_turns: none
+root:              gpt-5.6-sol / ultra
+default child:     gpt-5.6-terra / high
+requested tier:    default (not independently echoed in traces)
+V2 child fork:     fork_turns="none" (last 3 only with an explanation)
+V1 child fork:     fork_context=false
+V2 concurrency:   built-in root plus three active children
+policy ceiling:   three active; four distinct children per user turn
+nesting:          V1 depth one; V2 no-grandchildren policy is behavioral
 ```
 
-`agents.max_threads = 4` gives the root three concurrent child slots.
-`agents.max_depth = 1` prevents children from spawning grandchildren. The
-written policy also limits one user turn to four distinct children, including
-replacements.
+Mechanical controls and runtime limits:
 
-Because `fork_turns="none"` starts a clean child context, the root must send a
-self-contained semantic handoff. It summarizes the useful state of the parent
-thread while removing raw tool calls, superseded intermediate output, repeated
-file contents, conversational filler, and unrelated history.
+- the declared `default` role's Terra High model and reasoning on a compliant
+  non-full default-role spawn;
+- V2's built-in four active slots include the root, leaving three active child
+  slots by default, unless another managed setting overrides that default;
+- `max_depth=1` prevents V1 grandchildren. Codex 0.144 V2 ignores that setting.
 
-The handoff preserves:
+Behavioral instructions, not mechanically enforced (only selected behaviors
+below were exercised in scenarios):
 
-- the objective and current state;
-- binding decisions and rejected alternatives that still matter;
-- relevant files, evidence, and exact task-affecting errors;
-- constraints, known failures, and unresolved questions;
-- the child's assignment, required output, and acceptance criteria.
+- choosing the correct non-full fork field for V1 or V2;
+- building the semantic handoff;
+- keeping V1 to three active children;
+- no more than four distinct children per user turn;
+- preventing grandchildren under V2;
+- stopping for approval before SOL Ultra root takeover.
 
-The child re-reads named files before relying on the summary. Missing context is
-sent to the same child as a small delta so its own thread remains continuous.
-For rare tasks where recent dialogue cannot be summarized faithfully, the root
-may fork at most the last three turns and must explain why. Full-history forks
-still require explicit approval.
+Important: in Codex 0.144, a full-history spawn bypasses the custom role layer.
+The Terra routing therefore depends on the root following the non-full-fork
+instruction.
 
-## End-to-end validation
+## Validation
 
-The primary path was tested on July 10, 2026 in a disposable `CODEX_HOME` and a
-read-only canary workspace. The recorded parent and child rollouts confirmed:
+All tests used disposable Codex homes and did not modify the user's live Codex
+configuration.
 
-| Check | Recorded result |
-| --- | --- |
-| Root | `gpt-5.6-sol`, `ultra` |
-| Spawn call | Reserved schema unchanged; `fork_turns="none"` |
-| Child | `gpt-5.6-terra`, `high` |
-| Child policy | Custom developer instructions loaded |
-| Concurrency | Four total slots advertised: root plus three children |
-| Canary | Child read and returned the expected value |
-| Isolation | Existing config, global guidance, and auth hashes unchanged |
+### Profile child-role isolation
 
-The child config's `service_tier = "default"` was accepted by the successful
-run, but Codex does not echo service tier in its rollout metadata, so that field
-was not independently observed in the recorded trace. The three-child ceiling
-comes from Codex's stable `agents.max_threads` enforcement; the test did not
-deliberately saturate all slots and waste three extra child calls.
+The same sandbox was run twice:
 
-### Semantic-handoff scenario suite
+| Launch | Root | Default child |
+| --- | --- | --- |
+| With test profile | Luna Low | Terra High with profile child policy |
+| Without profile | Luna Low | Luna Low with no profile child policy |
 
-A second isolated test kept one SOL Ultra parent alive for five turns, included
-real tool output in its history, and spawned three separate Terra High children.
+Both runs intentionally used the same command-line Luna Low root override so
+the test isolated only the profile's child-role effect. This confirmed that the
+declared child is scoped to the selected profile and does not alter normal
+launches.
 
-| Trouble scenario | Result |
-| --- | --- |
-| Noisy history | The parent read 30 garbage log lines plus one useful receipt. The clean child recovered three conversation-only facts and the verified file state; its rollout contained zero garbage markers. |
-| Stale decisions | The child re-read conflicting decision history and current config, selected PostgreSQL/NATS, and explicitly marked SQLite superseded. |
-| Capability escalation | A test-only canary forced Terra to return `ESCALATION_REQUIRED`. SOL Ultra stopped, asked for explicit takeover approval, and did no challenge work. After a new user turn sent `APPROVE_SOL_ULTRA_TAKEOVER`, the same root completed locally without spawning another child. |
+### SOL Ultra/V2 semantic-handoff suite
 
-All three child rollouts recorded `gpt-5.6-terra`, `high`, and all three parent
-spawn calls recorded `fork_turns="none"`. There were exactly four threads: one
-SOL Ultra root and three direct children. No grandchild was created.
+One SOL Ultra parent remained alive for five turns and spawned three Terra High
+children with `fork_turns="none"`:
 
-The suite logged 271,835 input tokens across the root and children, of which
-215,040 were cached, plus 4,909 output tokens. These are trace volumes, not a
-known conversion to the five-hour allowance. Later child rollouts stayed small
-and contained none of the accumulated parent garbage, but an exact allowance
-savings percentage remains unobservable.
+- a noisy-history child recovered the required facts but inherited none of 30
+  garbage markers;
+- a stale-decision child re-read files and rejected superseded state;
+- a forced-escalation child returned `ESCALATION_REQUIRED`; the root stopped,
+  requested explicit approval, and completed only after a new approval turn.
 
-The CLI approval was a real plain-text stop/resume prompt, not a button. Codex
-surfaces that expose structured user input may render choices, but the
-workaround does not depend on buttons. The shipped agent does not contain the
-test-only forced-escalation canary.
-
-## Security and privacy
-
-This workaround:
-
-- executes no code;
-- opens no network connections;
-- installs no hook or background process;
-- requests no filesystem, shell, browser, or account permissions;
-- reads or uploads no telemetry;
-- does not weaken sandbox or approval settings.
-
-The custom child inherits the parent's sandbox and tools unless you explicitly
-restrict them further.
-
-## Limitations
-
-- This is a behavioral and configuration guardrail, not a billing boundary.
-- Overriding the `default` agent affects ordinary unnamed child spawns from all
-  parent models, not only SOL Ultra. Current Codex cannot condition a custom
-  default agent on the parent model.
-- The hard limit is three concurrent children. The four-distinct-children per
-  turn limit remains written guidance.
-- The reserved spawn schema does not currently permit a per-call model upgrade.
-  If Terra is insufficient, the policy stops and asks before the SOL Ultra root
-  takes the work back or before the user changes agent configuration. The
-  original task request does not count as escalation approval.
-- Approval buttons depend on the current Codex surface and mode; plain-text
-  confirmation is the fallback.
-- The scenario suite was synthetic and deterministic. It validates routing,
-  context filtering, stale-decision handling, and approval gating, but it is not
-  proof of outcome parity on every long-running production task.
-- Model availability and custom-agent behavior can change across Codex builds.
+The suite produced exactly one SOL root and three direct Terra High children,
+with no grandchildren.
 
 ## Uninstall
 
-Remove the copied `agents.max_threads`, `agents.max_depth`, and optional
-`features.multi_agent` keys; remove `~/.codex/agents/default.toml`; and remove
-the section headed `SOL Ultra subagent budget` from global `AGENTS.md`. Restart
-Codex afterward.
+The one-prompt form is:
+
+```text
+Clone https://github.com/carltonawong/sol-ultra-workaround temporarily, check out v0.2.0, read INSTALL.md, and uninstall the SOL Ultra Workaround from my current Codex surface without touching unrelated settings.
+```
+
+Profile mode:
+
+```powershell
+./uninstall.ps1
+```
+
+```sh
+./uninstall.sh
+```
+
+Project mode:
+
+```powershell
+./uninstall.ps1 -Mode project -ProjectRoot C:\path\to\project
+```
+
+```sh
+./uninstall.sh project /path/to/project
+```
+
+Uninstall verifies both TOML payloads against hashes recorded in the local
+manifest. It refuses when state is missing or invalid, a payload hash does not
+match, or the installation is incomplete. The manifest is not a signature and
+does not defend against coordinated local edits. The original checkout and
+payload version are not needed, but an uninstaller supporting manifest schema
+1 is still required. It never removes or restores unrelated Codex settings.
+
+## Security and privacy
+
+The installers:
+
+- copy only the two TOML payloads and create their local hash manifest;
+- refuse existing target files rather than overwrite them;
+- make no network request;
+- do not read or copy `auth.json`, credentials, sessions, telemetry, browser
+  data, or account data;
+- do not change sandbox, approval, MCP, plugin, or permission settings;
+- require no administrator or root privileges.
+
+Normal Codex model traffic continues. Spawned children inherit the root's
+sandbox, tools, and permissions unless the user restricts them further.
+
+## Limitations
+
+- The final profile was tested end to end on the target SOL Ultra/V2 path with
+  Codex CLI 0.144.0: the root recorded SOL Ultra, the non-full default child
+  recorded Terra High, and the canary task passed. The V1 field is a fallback
+  for a legacy schema, not a separately proven SOL Ultra lane.
+- Desktop/IDE project configuration uses the same documented config layer, but
+  the profile selector is CLI only. The bundled Desktop backend verified during
+  development was 0.144.0-alpha.4.
+- This is an opt-in profile or directory scope, not a parent-model predicate.
+- Switching models after launch does not automatically disable the declared
+  child role.
+- Project-local config has higher precedence than a CLI profile and can replace
+  the profile's agent declaration.
+- The approval gate and semantic handoff are model-followed policy.
+- A failed Terra attempt followed by an approved SOL Ultra takeover can cost
+  more than doing that task once on SOL; the stop exists so the user chooses.
+- Exact five-hour allowance savings remain unobservable from local traces.
+- Codex updates do not disable these files automatically. On an unverified
+  version, stop using or uninstall the workaround until it is revalidated.
+- Custom-agent authoring and SOL's reserved spawn schema may change in later
+  Codex versions.
 
 ## Status
 
-Unofficial workaround, intended to be removed when Codex exposes supported
-per-spawn model, reasoning, tier, context, and budget controls directly.
+Temporary workaround. Remove it when Codex exposes supported per-spawn model,
+reasoning, tier, context, and budget controls.

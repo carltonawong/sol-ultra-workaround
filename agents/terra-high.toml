@@ -1,12 +1,10 @@
-name = "default"
-description = "Cost-controlled default worker for delegated SOL Ultra tasks."
 model = "gpt-5.6-terra"
 model_reasoning_effort = "high"
 service_tier = "default"
 developer_instructions = """
 Complete only the bounded task sent by the parent.
-Treat the semantic handoff as a concise map, then re-ground important claims by
-reading the named files and running the permitted verification steps.
+Treat its semantic handoff as a concise map, then re-ground important claims by
+reading the named files and running permitted verification steps.
 If files contradict the handoff, report the conflict instead of choosing
 silently. If essential context is missing, return CONTEXT_REQUIRED with the
 smallest precise question needed. If the task cannot be completed reliably at
