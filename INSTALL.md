@@ -4,10 +4,11 @@ This file is written for a Codex agent asked to install this repository.
 
 ## Goal
 
-Install the SOL Ultra Workaround for the user's current Codex surface with the
-narrowest supported scope. The user should need only one action after the
-agent finishes: either launch with the named profile or restart/open the
-configured project.
+Install the SOL Ultra Workaround for the Codex surface and project where the
+request started, with the narrowest supported scope. Automatically target a
+safe, unambiguous project. Ask one precise question only when Codex cannot do
+that safely. The user should need only one action after the agent finishes:
+either launch with the named profile or restart/open the configured project.
 
 ## Safety rules
 
@@ -20,12 +21,17 @@ configured project.
 - Run only the installer shipped in this repository.
 - Stop on an existing target, partial installation, modified installed file,
   or other conflict. Do not improvise a merge.
-- Before downloading or entering the package checkout, remember the original
-  task workspace. Never use the package checkout itself as the project target.
-- If the repository is not already available, clone the pinned release with
-  `git clone --depth 1 --branch v0.2.0 https://github.com/carltonawong/sol-ultra-workaround.git`
+- Before downloading or entering the package checkout, record the original
+  task surface, current directory, and app-declared workspace root(s). Keep
+  using that recorded location for every target decision. Never infer the
+  target from the temporary package checkout or the installer's working
+  directory.
+- Use the immutable `v0.2.1` release, not a moving branch. If an exact, clean
+  `v0.2.1` checkout is not already available, clone it with
+  `git clone --depth 1 --branch v0.2.1 https://github.com/carltonawong/sol-ultra-workaround.git`
   into a new temporary directory outside the original task workspace. Do not
-  pipe remote content directly into a shell.
+  switch, clean, or otherwise modify a checkout that existed before the
+  request, and do not pipe remote content directly into a shell.
 
 ## Check the version
 
@@ -35,29 +41,45 @@ automatically only for `0.144.0` or the verified Desktop build
 `0.144.0-alpha.4`. If the active version cannot be determined or is different,
 stop and ask whether the user wants to try an unverified version.
 
-## Choose the mode
+## Choose the mode and destination
 
-1. If the current surface is Codex CLI, use `profile`.
-2. If the current surface is Codex Desktop or the IDE extension, use `project`
-   for the original trusted task project, not the downloaded package checkout.
-3. If the surface cannot be determined, ask one short question rather than
-   guessing.
-4. If there is not exactly one clear original project root, ask one short
-   question instead of guessing.
-5. If Desktop/IDE is rooted at the user's home directory, or the project
-   already has `.codex/config.toml` or `.codex/agents/default.toml`, stop and
-   explain that Codex 0.144 cannot provide a parent-model-only global override.
-   A dedicated project/new task is required for isolation.
-6. In CLI profile mode, stop if the original project has a project-local
-   `.codex/config.toml` distinct from the base `$CODEX_HOME/config.toml`.
-   Project configuration has higher precedence and can defeat this profile.
+Never run an installer until both the mode and any project destination are
+explicit. Never fall back from an ambiguous Desktop/IDE target to CLI profile
+mode.
+
+1. **Codex CLI:** automatically choose `profile`. In profile mode, stop if the
+   original project has a project-local `.codex/config.toml` distinct from the
+   base `$CODEX_HOME/config.toml`; project configuration has higher precedence
+   and can defeat the profile.
+2. **Codex Desktop or IDE, one safe workspace root:** automatically choose
+   `project` and pass that original root as an absolute `ProjectRoot`. A safe
+   automatic target is one app-declared, dedicated project root that is not a
+   filesystem root, the user's home, `$CODEX_HOME`, a broad directory holding
+   multiple unrelated projects, or the downloaded package checkout.
+3. **Codex Desktop or IDE, unsafe or ambiguous root:** do not stop with a
+   generic explanation. Ask exactly one actionable question:
+
+   > SOL Ultra Workaround needs a dedicated Codex project. This task is rooted
+   > at `<path-or-roots>`, which cannot be scoped safely because `<reason>`.
+   > Which absolute project folder should I configure? Reply with a path, or
+   > say CANCEL.
+
+   Do not invent or create a project folder. Validate the user's answer under
+   the same safety rules before continuing. A structured choice UI may be used
+   when the client exposes one, but the plain-text question must always work.
+4. **Unknown surface:** ask exactly: `Are you using Codex CLI, Desktop, or the
+   IDE extension?` Then apply the matching rule above.
+5. An existing `.codex/config.toml` or `.codex/agents/default.toml` is a hard
+   conflict. Do not merge or overwrite it. Explain the exact conflicting path
+   and ask for a different dedicated project only if that would still satisfy
+   the user's request.
 
 ## Run
 
 Windows, CLI:
 
 ```powershell
-./install.ps1
+./install.ps1 -Mode profile
 ```
 
 Windows, Desktop or IDE:

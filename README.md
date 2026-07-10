@@ -13,17 +13,23 @@ OpenAI-supported quota control.
 
 ## One-prompt install
 
-Send this one line to Codex:
+Send this one line from the Codex task you want to configure:
 
 ```text
-Clone https://github.com/carltonawong/sol-ultra-workaround temporarily, check out v0.2.0, read and follow INSTALL.md, inspect the small platform installer, then install it for my current Codex surface.
+Install release v0.2.1 for the Codex surface and project this task started in: https://github.com/carltonawong/sol-ultra-workaround
 ```
 
-Codex will read [`INSTALL.md`](INSTALL.md), choose profile mode for CLI or
-project mode for Desktop/IDE, run the shipped installer, verify the
-installation, and return the one launch/restart step. If the current project
-cannot be safely isolated or the Codex version is unverified, it stops instead
-of touching global settings.
+The install contract directs Codex to pin `v0.2.1`, read
+[`INSTALL.md`](INSTALL.md), and remember the original task location before
+using a temporary clone. CLI automatically gets the opt-in profile. Desktop/IDE
+automatically gets project mode when the task has one safe dedicated project
+root. If it does not, Codex asks one specific question for the absolute project
+folder instead of guessing or changing global settings. It then runs the
+shipped installer, verifies the installation, and returns the one
+launch/restart step.
+
+A bare URL can look like a review request, so include the words `Install this:`.
+You do not need to supply a project path unless Codex asks for it.
 
 ## Does it meaningfully reduce usage?
 
@@ -85,6 +91,17 @@ Codex 0.144 has no supported runtime condition meaning "apply this default
 agent only if the current parent is SOL Ultra." Profiles provide opt-in CLI
 scoping; project configuration provides directory scoping for Desktop/IDE.
 
+### Why there is no "SOL Ultra selected" pop-up
+
+Codex loads profile and project configuration when a task starts. A lifecycle
+hook can inspect the active model and show a warning, but there is no
+model-selection event, the hook does not receive the reasoning effort needed to
+distinguish Ultra from High or Medium, and it cannot load a CLI profile or
+replace the already-loaded task configuration. It would also require a global
+script and hook-trust prompt affecting unrelated tasks. This package therefore
+installs no hook, watcher, daemon, or global `AGENTS.md` rule. CLI activation
+stays explicit; Desktop/IDE activation stays project-local.
+
 ## Install
 
 The installers refuse to overwrite any existing file. Because the workaround
@@ -99,14 +116,14 @@ three new target files. The installer performs no network request itself.
 Windows PowerShell:
 
 ```powershell
-./install.ps1
+./install.ps1 -Mode profile
 codex --profile sol-ultra
 ```
 
 macOS or Linux:
 
 ```sh
-./install.sh
+./install.sh profile
 codex --profile sol-ultra
 ```
 
@@ -252,7 +269,7 @@ with no grandchildren.
 The one-prompt form is:
 
 ```text
-Clone https://github.com/carltonawong/sol-ultra-workaround temporarily, check out v0.2.0, read INSTALL.md, and uninstall the SOL Ultra Workaround from my current Codex surface without touching unrelated settings.
+Uninstall this from the Codex surface and project this task started in without touching unrelated settings: https://github.com/carltonawong/sol-ultra-workaround (use release v0.2.1)
 ```
 
 Profile mode:

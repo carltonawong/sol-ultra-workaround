@@ -2,8 +2,14 @@
 set -eu
 umask 077
 
-mode="${1:-profile}"
-project_root="${2:-$(pwd)}"
+if [ "$#" -lt 1 ]; then
+  echo "Usage: ./install.sh profile" >&2
+  echo "   or: ./install.sh project /absolute/project/root" >&2
+  exit 2
+fi
+
+mode=$1
+project_root="${2:-}"
 package_root=$(CDPATH= cd "$(dirname "$0")" && pwd -P)
 source_config="$package_root/profiles/sol-ultra.config.toml"
 source_agent="$package_root/agents/terra-high.toml"
@@ -56,16 +62,43 @@ fi
 
 case "$mode" in
   profile)
+    if [ "$#" -ne 1 ]; then
+      echo "Profile mode does not accept a project root." >&2
+      exit 2
+    fi
     target_config="$codex_home/sol-ultra.config.toml"
     target_agent="$codex_home/sol-ultra-workaround/terra-high.toml"
     ;;
   project)
+    if [ "$#" -ne 2 ]; then
+      echo "Project mode requires one absolute project root." >&2
+      exit 2
+    fi
+    case "$project_root" in
+      /*) ;;
+      *)
+        echo "Project root must be an absolute path: $project_root" >&2
+        exit 2
+        ;;
+    esac
     project_root=$(CDPATH= cd -- "$project_root" && pwd -P)
     home_root=$(CDPATH= cd -- "$HOME" && pwd -P)
-    if [ "$project_root" = "$package_root" ]; then
-      echo "Refusing to install project mode into the package checkout." >&2
+    case "$project_root" in
+      /)
+        echo "Refusing to turn a filesystem root into project mode." >&2
+        exit 1
+        ;;
+    esac
+    if [ "$project_root" = "$codex_home" ]; then
+      echo "Refusing to turn CODEX_HOME into project mode." >&2
       exit 1
     fi
+    case "$project_root" in
+      "$package_root"|"$package_root"/*)
+        echo "Refusing to install project mode into the package checkout." >&2
+        exit 1
+        ;;
+    esac
     if [ "$project_root" = "$home_root" ]; then
       echo "Refusing to turn the user's home directory into project mode." >&2
       exit 1
@@ -85,7 +118,8 @@ case "$mode" in
     target_agent="$project_codex_dir/sol-ultra-workaround/terra-high.toml"
     ;;
   *)
-    echo "Usage: ./install.sh [profile|project] [project-root]" >&2
+    echo "Usage: ./install.sh profile" >&2
+    echo "   or: ./install.sh project /absolute/project/root" >&2
     exit 2
     ;;
 esac

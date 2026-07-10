@@ -1,11 +1,21 @@
 [CmdletBinding()]
 param(
     [ValidateSet("profile", "project")]
-    [string]$Mode = "profile",
-    [string]$ProjectRoot = (Get-Location).Path
+    [string]$Mode,
+    [string]$ProjectRoot
 )
 
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($Mode)) {
+    throw "Mode is required. CLI: ./install.ps1 -Mode profile. Desktop/IDE: ./install.ps1 -Mode project -ProjectRoot <absolute-project-root>."
+}
+if ($Mode -eq "project" -and [string]::IsNullOrWhiteSpace($ProjectRoot)) {
+    throw "ProjectRoot is required in project mode and must be an absolute path."
+}
+if ($Mode -eq "profile" -and -not [string]::IsNullOrWhiteSpace($ProjectRoot)) {
+    throw "ProjectRoot is valid only in project mode."
+}
 
 function Assert-PlainDirectoryIfPresent([string]$Path) {
     $item = Get-Item -Force -LiteralPath $Path -ErrorAction SilentlyContinue
@@ -116,6 +126,9 @@ if ($Mode -eq "profile") {
     $targetConfig = Join-Path $codexHome "sol-ultra.config.toml"
     $targetAgent = Join-Path $codexHome "sol-ultra-workaround\terra-high.toml"
 } else {
+    if (-not [IO.Path]::IsPathRooted($ProjectRoot)) {
+        throw "ProjectRoot must be an absolute path: $ProjectRoot"
+    }
     $projectCandidate = [IO.Path]::GetFullPath($ProjectRoot)
     if (-not (Test-Path -LiteralPath $projectCandidate -PathType Container)) {
         throw "Project root does not exist: $projectCandidate"
@@ -123,7 +136,17 @@ if ($Mode -eq "profile") {
     Assert-NoReparseAncestors $projectCandidate
     $resolvedProject = (Resolve-Path -LiteralPath $projectCandidate).Path
     $resolvedHome = (Resolve-Path -LiteralPath $HOME).Path
-    if ($resolvedProject -ieq $packageRoot) {
+    $trimChars = [char[]]"\/"
+    $resolvedRoot = [IO.Path]::GetPathRoot($resolvedProject)
+    if ($resolvedProject.TrimEnd($trimChars) -ieq $resolvedRoot.TrimEnd($trimChars)) {
+        throw "Refusing to turn a filesystem root into project mode."
+    }
+    if ($resolvedProject -ieq $codexHome) {
+        throw "Refusing to turn CODEX_HOME into project mode."
+    }
+    $packagePrefix = $packageRoot.TrimEnd($trimChars) + [IO.Path]::DirectorySeparatorChar
+    if ($resolvedProject -ieq $packageRoot -or
+        $resolvedProject.StartsWith($packagePrefix, [StringComparison]::OrdinalIgnoreCase)) {
         throw "Refusing to install project mode into the package checkout."
     }
     if ($resolvedProject -ieq $resolvedHome) {
