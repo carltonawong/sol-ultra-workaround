@@ -1,4 +1,4 @@
-# Codex Subagent Budget
+# SOL Ultra Workaround
 
 A small, temporary workaround for Codex sessions where an expensive root agent
 silently spawns equally expensive subagents and forks the full conversation into
