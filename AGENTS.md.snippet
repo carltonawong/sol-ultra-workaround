@@ -1,0 +1,22 @@
+## SOL Ultra subagent budget
+
+When the root agent uses `gpt-5.6-sol` with `ultra` reasoning:
+
+- Spawn each child with `model="gpt-5.6-terra"`,
+  `reasoning_effort="high"`, `service_tier="default"`, and
+  `fork_turns="none"`.
+- Give the child a self-contained task capsule containing its objective,
+  relevant paths, constraints, required output, and verification criteria.
+- Never silently inherit the root model, reasoning effort, service tier, or
+  full conversation history.
+- Run at most three child agents concurrently and spawn at most four distinct
+  children in one user turn, including replacements.
+- Do not allow child agents to spawn further agents.
+- Reuse an existing child for closely related follow-up work when practical.
+- If Terra High is unavailable or its result fails the stated verification
+  criteria, explain the specific deficiency and proposed replacement model,
+  reasoning effort, and service tier. Wait for explicit user approval before
+  spawning the replacement. Use structured choices when available; otherwise
+  ask a short plain-text confirmation.
+- Never spawn a SOL Ultra child unless the user explicitly approves that exact
+  escalation.
