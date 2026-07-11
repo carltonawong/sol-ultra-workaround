@@ -16,10 +16,10 @@ OpenAI-supported quota control.
 Send this one line from the Codex task you want to configure:
 
 ```text
-Install this release v0.2.2 for the Codex surface and project this task started in: https://github.com/carltonawong/sol-ultra-workaround
+Install this release v0.3.0 for the Codex surface and project this task started in: https://github.com/carltonawong/sol-ultra-workaround
 ```
 
-The install contract directs Codex to pin `v0.2.2`, read
+The install contract directs Codex to pin `v0.3.0`, read
 [`INSTALL.md`](INSTALL.md), and remember the original task location before
 using a temporary clone. CLI automatically gets the opt-in profile. Desktop
 automatically gets project mode when the task has one safe local project; a
@@ -109,8 +109,12 @@ The current design is additive:
   configuration. Other projects are untouched; new tasks in that configured
   project are pinned to the SOL Ultra setup unless the user overrides it.
 
-The installed footprint is two TOML files plus a tiny local hash manifest,
-totaling less than 4 KB. Nothing runs in the background after installation.
+The CLI profile footprint is exactly two TOML files plus a tiny local hash
+manifest. Project mode additionally stores an installed copy of the managed
+guidance block and appends that block to the selected project's active root
+guidance file. When that file already exists, it records an installer-owned
+exact backup for reversible uninstall. Nothing runs in the background after
+installation.
 
 Codex 0.144 has no supported runtime condition meaning "apply this default
 agent only if the current parent is SOL Ultra." Profiles provide opt-in CLI
@@ -123,18 +127,25 @@ hook can inspect the active model and show a warning, but there is no
 model-selection event, the hook does not receive the reasoning effort needed to
 distinguish Ultra from High or Medium, and it cannot load a CLI profile or
 replace the already-loaded task configuration. It would also require a global
-script and hook-trust prompt affecting unrelated tasks. This package therefore
-installs no hook, watcher, daemon, or global `AGENTS.md` rule. CLI activation
-stays explicit; Desktop/IDE activation stays project-local.
+script and hook-trust prompt affecting unrelated tasks. Hooks also cannot
+intercept Codex's internal `spawn_agent` operation, so they cannot enforce this
+package's root-only-spawn policy. This package installs no hook, watcher,
+daemon, or global `AGENTS.md` rule. CLI activation stays explicit; Desktop/IDE
+activation stays project-local through the selected project's active guidance.
 
 ## Install
 
-The installers refuse to overwrite any existing file. Because the workaround
-does not modify the user's base `config.toml`, global `AGENTS.md`, or global
-`agents/default.toml`, uninstall does not need to restore them.
+The installers refuse to overwrite package targets. They never modify the
+user's base `config.toml`, global `AGENTS.md`, global `AGENTS.override.md`, or
+global `agents/default.toml`. Project mode does deliberately append one
+managed, marked block to the selected project's active root guidance file,
+preserving content outside the markers and recording an exact backup when that
+file already exists. Uninstall restores that backup when the file is otherwise
+unchanged; if the user changed it later but the canonical block is intact, it
+removes only the block and preserves the user's other changes.
 
 Codex still needs normal permission to clone/read the repository and write the
-three new target files. The installer performs no network request itself.
+documented scoped targets. The installer performs no network request itself.
 
 ### CLI profile — recommended
 
@@ -181,13 +192,24 @@ only into a dedicated trusted project that should default to SOL Ultra:
 Project mode refuses an existing `.codex/config.toml` or
 `.codex/agents/default.toml`, the user's home directory, and the downloaded
 package checkout instead of merging, overwriting, or broadening scope. It adds
-only:
+these package-owned files:
 
 ```text
 <project>/.codex/config.toml
 <project>/.codex/sol-ultra-workaround/terra-high.toml
+<project>/.codex/sol-ultra-workaround/guidance-block.md
 <project>/.codex/sol-ultra-workaround/install-state.txt
 ```
+
+It also updates the project's active root guidance: `AGENTS.override.md` when
+present, otherwise `AGENTS.md`. The appended block is delimited exactly by
+`<!-- SOL-ULTRA-WORKAROUND:BEGIN -->` and
+`<!-- SOL-ULTRA-WORKAROUND:END -->`; user content outside those markers is
+preserved. If the active file existed, its exact pre-install contents are
+backed up at `<project>/.codex/sol-ultra-workaround/<active-file>.preinstall.bak`.
+If neither root guidance file existed, the installer creates `AGENTS.md` with
+the canonical block. A symlink, non-regular file, or pre-existing managed
+marker is a conflict, not a merge opportunity.
 
 Desktop: add or open the folder as a trusted Local Project, then create a fresh
 task inside that project. IDE: open and trust the configured folder or
@@ -197,10 +219,15 @@ client and try the fresh task again.
 
 ## Existing tasks
 
-New tasks are the safest choice on Codex 0.144 because the complete profile
-policy is guaranteed to load at task creation.
+Start a new task after installation. On Codex 0.144, this is required for the
+complete policy to load reliably: start the CLI task with
+`--profile sol-ultra`, or create the task inside the configured trusted
+project. A top-level projectless Desktop **New task** does not load the
+workaround.
 
-Existing tasks can still use the routing change:
+An existing task does not meet this activation requirement. After a cold
+restart it may still use the routing change, but do not treat a resumed task as
+proof that the complete managed policy loaded:
 
 - fully stop and restart the Codex backend first;
 - CLI: resume with
@@ -230,11 +257,11 @@ When the profile or dedicated project configuration is active:
 root:              gpt-5.6-sol / ultra
 default child:     gpt-5.6-terra / high
 requested tier:    default (not independently echoed in traces)
-V2 child fork:     fork_turns="none" (last 3 only with an explanation)
+V2 child fork:     fork_turns="none"
 V1 child fork:     fork_context=false
 V2 concurrency:   built-in root plus three active children
 policy ceiling:   three active; four distinct children per user turn
-nesting:          V1 depth one; V2 no-grandchildren policy is behavioral
+nesting:          V1 depth one; V2 root-only-spawn policy is behavioral
 ```
 
 Mechanical controls and runtime limits:
@@ -243,16 +270,19 @@ Mechanical controls and runtime limits:
   non-full default-role spawn;
 - V2's built-in four active slots include the root, leaving three active child
   slots by default, unless another managed setting overrides that default;
-- `max_depth=1` prevents V1 grandchildren. Codex 0.144 V2 ignores that setting.
+- `max_depth=1` prevents V1 grandchildren; `max_threads=3` is the configured
+  child-thread ceiling. Codex 0.144 V2 ignores `max_depth`.
 
 Behavioral instructions, not mechanically enforced (only selected behaviors
 below were exercised in scenarios):
 
 - choosing the correct non-full fork field for V1 or V2;
 - building the semantic handoff;
-- keeping V1 to three active children;
+- root-only spawning and the V2 no-grandchildren rule;
 - no more than four distinct children per user turn;
-- preventing grandchildren under V2;
+- rejecting a child result until routing, high reasoning, and isolated context
+  are independently verified from runtime evidence, and stopping when that
+  evidence is unavailable;
 - stopping for approval before SOL Ultra root takeover.
 
 Important: in Codex 0.144, a full-history spawn bypasses the custom role layer.
@@ -318,7 +348,7 @@ official Desktop project flow.
 The one-prompt form is:
 
 ```text
-Uninstall this from the Codex surface and project this task started in without touching unrelated settings: https://github.com/carltonawong/sol-ultra-workaround (use release v0.2.2)
+Uninstall this release v0.3.0 from the Codex surface and project this task started in, using the recorded managed-guidance state and without touching unrelated settings: https://github.com/carltonawong/sol-ultra-workaround
 ```
 
 Profile mode:
@@ -341,18 +371,28 @@ Project mode:
 ./uninstall.sh project /path/to/project
 ```
 
-Uninstall verifies both TOML payloads against hashes recorded in the local
-manifest. It refuses when state is missing or invalid, a payload hash does not
-match, or the installation is incomplete. The manifest is not a signature and
-does not defend against coordinated local edits. The original checkout and
-payload version are not needed, but an uninstaller supporting manifest schema
-1 is still required. It never removes or restores unrelated Codex settings.
+Uninstall verifies both TOML payloads and, in project mode, the installed
+guidance copy plus the managed-root-guidance state against hashes recorded in
+the local manifest. It refuses when state is missing or invalid, a payload hash
+does not match, or the installation is incomplete. Schema-1 installations must
+first be uninstalled; v0.3.0 does not perform an in-place schema upgrade. The
+manifest is not a signature and does not defend
+against coordinated local edits. Schema-2 project uninstall restores its exact
+recorded backup when the active guidance is otherwise unchanged; otherwise it
+removes only the intact marked block and package files. It never removes or
+restores unrelated Codex settings. On Windows, when the installer originally
+created `AGENTS.md`, the race-safe PowerShell uninstaller may leave that file
+present but empty instead of deleting it; it never leaves the managed block.
 
 ## Security and privacy
 
 The installers:
 
-- copy only the two TOML payloads and create their local hash manifest;
+- profile mode copies only the two TOML payloads and creates its local hash
+  manifest;
+- project mode also copies the managed guidance payload and changes only the
+  selected active root guidance file within the exact managed markers (with a
+  recorded backup when that file existed);
 - refuse existing target files rather than overwrite them;
 - make no network request;
 - do not read or copy `auth.json`, credentials, sessions, telemetry, browser
@@ -380,7 +420,8 @@ sandbox, tools, and permissions unless the user restricts them further.
   child role.
 - Project-local config has higher precedence than a CLI profile and can replace
   the profile's agent declaration.
-- The approval gate and semantic handoff are model-followed policy.
+- The approval gate, semantic handoff, root-only spawning, and runtime result
+  validation are model-followed policy. Hooks cannot enforce internal spawns.
 - A failed Terra attempt followed by an approved SOL Ultra takeover can cost
   more than doing that task once on SOL; the stop exists so the user chooses.
 - Exact five-hour allowance savings remain unobservable from local traces.

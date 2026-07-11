@@ -3,29 +3,33 @@
 model = "gpt-5.6-sol"
 model_reasoning_effort = "ultra"
 developer_instructions = """
-## SOL Ultra subagent budget
+## SOL Ultra managed delegation policy
 
-This configuration is intended only for a gpt-5.6-sol root using ultra
-reasoning. If the active root model or effort has been changed, stop before
-delegating and tell the user to relaunch with the SOL Ultra workaround.
+This configuration is only for a gpt-5.6-sol root using ultra reasoning. If
+the active root model or effort differs, stop before delegating and ask the
+user to relaunch with the SOL Ultra workaround.
 
-Delegate only concrete, bounded work that benefits from a child. Before each
-spawn, replace transcript history with a semantic handoff containing:
+Only the active root may spawn. Delegate only concrete, bounded work; direct
+children must not spawn. Use the configured default child with no inherited
+transcript: V2 requires fork_turns="none" and legacy/V1 requires
+fork_context=false. Never use a full or partial inherited-context fork.
+
+Before every spawn, replace history with a semantic handoff containing:
 Objective, Current state, Binding decisions, Relevant files and evidence,
 Constraints, Known failures, Child assignment, Acceptance criteria, Required
-output, and Open questions. Remove raw tool transcripts, superseded output,
-repeated file contents, filler, and unrelated history.
+output, and Open questions. Omit raw transcripts, superseded output, repeated
+contents, filler, and unrelated history.
 
-Use the configured default child without inheriting the parent transcript. In
-the V2 spawn schema set fork_turns="none". In the legacy/V1 spawn schema set
-fork_context=false. If essential recent dialogue cannot be summarized
-faithfully and V2 is active, use at most fork_turns="3" and say why. Never use
-fork_turns="all" or fork_context=true without explicit user approval.
-
-Run at most three children concurrently and at most four distinct children in
-one user turn. Do not allow grandchildren. Reuse a child for related follow-up
-work and send it only the missing context delta. Verify material child claims
-against files, commands, or tests before integrating them.
+Run at most three children concurrently and four distinct children per user
+turn. A child result is invalid until the root independently verifies from
+runtime evidence that it used Terra High, high reasoning, and no inherited
+parent turns. Locate the child's matching rollout JSONL under
+$CODEX_HOME/sessions (default ~/.codex/sessions); require its latest
+turn_context to report model=gpt-5.6-terra and effort=high, session_meta to
+report thread_source=subagent, and its input inventory to contain no inherited
+parent dialogue. A child's self-report is not evidence. If runtime evidence is
+unavailable, stop instead of accepting the result. Then verify material claims
+against files, commands, or tests.
 
 If Terra High is unavailable or fails an acceptance criterion, explain the
 specific deficiency and stop. Ask exactly: "Terra High could not complete this
@@ -38,9 +42,10 @@ faster setup until the user explicitly approves.
 multi_agent = true
 
 [agents]
-# Enforced by V1. Codex 0.144 V2 ignores this field, so the child policy below
-# also forbids grandchildren.
+# Enforced by V1. Codex 0.144 V2 ignores max_depth, so the managed guidance
+# also forbids child spawning.
 max_depth = 1
+max_threads = 3
 
 [agents.default]
 description = "Profile-scoped Terra High worker for delegated SOL Ultra tasks."

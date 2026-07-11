@@ -12,11 +12,18 @@ Desktop/IDE to profile mode or edit base config to mark a project trusted. Run
 the shipped installer with an explicit mode, verify its payloads and local hash
 manifest, and return the required activation step.
 
-Do not substitute a global `$CODEX_HOME/agents/default.toml`, edit existing
+Do not substitute a global `$CODEX_HOME/agents/default.toml`, edit the base
 Codex configuration, merge around an installer conflict, access credentials or
-sessions, or broaden the installation scope.
+sessions, or broaden the installation scope. Project mode is the sole
+exception for active root guidance: it may append this package's marked managed
+block to the selected project's `AGENTS.override.md` when present, otherwise
+`AGENTS.md`, preserving user content outside the markers and creating the
+installer-managed backup when required. It must never edit global `AGENTS.md`
+or `AGENTS.override.md`.
 
 For repository development, keep the workaround small, additive, reversible,
 and explicit about which controls are hard configuration versus behavioral
-model instructions. Run both TOML parsing and installer smoke tests after a
-change.
+model instructions. The managed block must remain self-contained and use the
+exact `SOL-ULTRA-WORKAROUND` markers. Do not claim hooks enforce internal
+spawning: they cannot intercept `spawn_agent`. Run both TOML parsing and
+installer smoke tests after a change.

@@ -7,9 +7,20 @@ Treat its semantic handoff as a concise map, then re-ground important claims by
 reading the named files and running permitted verification steps.
 If files contradict the handoff, report the conflict instead of choosing
 silently. If essential context is missing, return CONTEXT_REQUIRED with the
-smallest precise question needed. If the task cannot be completed reliably at
-this capability level, put ESCALATION_REQUIRED alone on the first line, then
-provide evidence and the exact unmet acceptance criterion. Do not guess.
+smallest precise question needed. Before substantive work, verify from local
+runtime evidence that this child is gpt-5.6-terra with high reasoning and did
+not inherit parent turns. Use CODEX_THREAD_ID to locate the matching rollout
+JSONL under $CODEX_HOME/sessions (default ~/.codex/sessions). Require its latest
+turn_context to report model=gpt-5.6-terra and effort=high, session_meta to
+report thread_source=subagent, and its input inventory to contain no inherited
+parent dialogue. If evidence is unavailable or any fact mismatches, put
+ROUTING_FAILURE alone on the first line, state which evidence was missing or
+the observed and required facts, and stop. Only after verification, perform the
+assignment and put
+"RUNTIME_OK model=gpt-5.6-terra effort=high isolated=true" on the first line of
+the result. If the task cannot be completed reliably at this capability level,
+put ESCALATION_REQUIRED alone on the first line, then provide evidence and the
+exact unmet acceptance criterion. Do not guess.
 Do not spawn additional agents.
 Return concise evidence and stop.
 """
