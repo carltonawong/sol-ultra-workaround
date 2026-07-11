@@ -16,20 +16,45 @@ OpenAI-supported quota control.
 Send this one line from the Codex task you want to configure:
 
 ```text
-Install release v0.2.1 for the Codex surface and project this task started in: https://github.com/carltonawong/sol-ultra-workaround
+Install this release v0.2.2 for the Codex surface and project this task started in: https://github.com/carltonawong/sol-ultra-workaround
 ```
 
-The install contract directs Codex to pin `v0.2.1`, read
+The install contract directs Codex to pin `v0.2.2`, read
 [`INSTALL.md`](INSTALL.md), and remember the original task location before
-using a temporary clone. CLI automatically gets the opt-in profile. Desktop/IDE
-automatically gets project mode when the task has one safe dedicated project
-root. If it does not, Codex asks one specific question for the absolute project
-folder instead of guessing or changing global settings. It then runs the
-shipped installer, verifies the installation, and returns the one
-launch/restart step.
+using a temporary clone. CLI automatically gets the opt-in profile. Desktop
+automatically gets project mode when the task has one safe local project; a
+projectless Desktop task offers either a dedicated `SOL Ultra Tasks` project or
+an existing folder. IDE automatically uses one safe workspace root and asks for
+an existing root when the workspace is ambiguous. Codex does not guess or
+change global settings. It runs the shipped installer, verifies the
+installation, and returns the surface-specific activation step.
 
-A bare URL can look like a review request, so include the words `Install this:`.
+A bare URL can look like a review request, so include an explicit install
+instruction like the example above.
 You do not need to supply a project path unless Codex asks for it.
+
+## Desktop: `New task` by itself is not enough
+
+The top-level **New task** action can create a projectless task. Projectless
+tasks do not load a folder's `.codex/config.toml`, so they cannot activate this
+workaround merely by being new.
+
+For general Desktop work that is not tied to a codebase, use one dedicated
+local project:
+
+1. Start a top-level projectless task and paste the one-prompt install above.
+2. When asked, reply `CREATE DEDICATED PROJECT`.
+3. Codex creates and configures `~/SOL Ultra Tasks` only if that destination is
+   safe and unused.
+4. In Desktop, add or open that folder as a **Local Project** and trust it.
+5. Select that project and choose **New task** inside it.
+
+Fresh tasks created inside that trusted local project load the workaround when
+no higher-precedence setting overrides it. A top-level projectless **New task**
+does not. If the task needs to edit an existing codebase, configure that
+codebase's own local project instead of the general-purpose folder.
+
+- [Official Codex guidance for projectless tasks and local projects](https://learn.chatgpt.com/docs/projects)
 
 ## Does it meaningfully reduce usage?
 
@@ -164,8 +189,11 @@ only:
 <project>/.codex/sol-ultra-workaround/install-state.txt
 ```
 
-Fully quit Codex or stop the IDE extension backend, restart it, and open that
-project.
+Desktop: add or open the folder as a trusted Local Project, then create a fresh
+task inside that project. IDE: open and trust the configured folder or
+workspace, then start a fresh task there. If Codex 0.144 does not pick up a
+project layer installed while the client was already open, fully restart the
+client and try the fresh task again.
 
 ## Existing tasks
 
@@ -233,8 +261,12 @@ instruction.
 
 ## Validation
 
-All tests used disposable Codex homes and did not modify the user's live Codex
-configuration.
+Installer and routing-suite tests used disposable Codex homes. The Desktop
+canary below used a disposable project with the live Desktop backend and
+archived its test threads. A test-only attempt to supply trust through the
+app-server persisted one dummy trust entry; cleanup removed that exact entry
+and revalidated the base config. The released installer never writes trust or
+edits the base config.
 
 ### Profile child-role isolation
 
@@ -264,12 +296,29 @@ children with `fork_turns="none"`:
 The suite produced exactly one SOL root and three direct Terra High children,
 with no grandchildren.
 
+### Desktop dedicated-project canary
+
+A disposable `SOL Ultra Tasks`-style folder was installed in project mode and
+started through the bundled Desktop `0.144.0-alpha.4` app-server backend:
+
+- the trusted fresh root recorded `gpt-5.6-sol` with `ultra` reasoning and the
+  installed SOL Ultra policy in its rollout;
+- its one non-full default child recorded `gpt-5.6-terra` with `high` reasoning;
+- child and parent completion markers returned, and both threads were archived.
+
+This validates the Desktop backend's new-task configuration and child routing.
+An untrusted attempt correctly emitted the documented config-disabled warning,
+but child routing was still observed and therefore was not used as a negative
+control. The Projects-view add/open-and-trust UI step was not automated; it
+remains the normal user-controlled activation sequence described in the
+official Desktop project flow.
+
 ## Uninstall
 
 The one-prompt form is:
 
 ```text
-Uninstall this from the Codex surface and project this task started in without touching unrelated settings: https://github.com/carltonawong/sol-ultra-workaround (use release v0.2.1)
+Uninstall this from the Codex surface and project this task started in without touching unrelated settings: https://github.com/carltonawong/sol-ultra-workaround (use release v0.2.2)
 ```
 
 Profile mode:
@@ -323,6 +372,9 @@ sandbox, tools, and permissions unless the user restricts them further.
 - Desktop/IDE project configuration uses the same documented config layer, but
   the profile selector is CLI only. The bundled Desktop backend verified during
   development was 0.144.0-alpha.4.
+- A top-level projectless Desktop task does not load the workaround. The folder
+  must be added or opened and trusted as a Local Project, and the task must be
+  created inside that project.
 - This is an opt-in profile or directory scope, not a parent-model predicate.
 - Switching models after launch does not automatically disable the declared
   child role.

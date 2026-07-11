@@ -231,5 +231,5 @@ if [ "$mode" = profile ]; then
   echo "Launch: codex --profile sol-ultra"
   echo "Resume: codex resume --profile sol-ultra <SESSION_ID_OR_NAME>"
 else
-  echo "Fully quit and restart Codex, then open: $project_root"
+  echo "Project mode: open and trust this folder or workspace, then create a new task inside it: $project_root"
 fi

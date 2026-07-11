@@ -6,9 +6,10 @@ This file is written for a Codex agent asked to install this repository.
 
 Install the SOL Ultra Workaround for the Codex surface and project where the
 request started, with the narrowest supported scope. Automatically target a
-safe, unambiguous project. Ask one precise question only when Codex cannot do
-that safely. The user should need only one action after the agent finishes:
-either launch with the named profile or restart/open the configured project.
+safe, unambiguous project. When a Desktop task is projectless, offer one safe
+dedicated local project instead of requiring the user to invent a path. The
+remaining user action is either launching with the named CLI profile or
+opening/trusting the configured local project and starting a task inside it.
 
 ## Safety rules
 
@@ -26,9 +27,9 @@ either launch with the named profile or restart/open the configured project.
   using that recorded location for every target decision. Never infer the
   target from the temporary package checkout or the installer's working
   directory.
-- Use the immutable `v0.2.1` release, not a moving branch. If an exact, clean
-  `v0.2.1` checkout is not already available, clone it with
-  `git clone --depth 1 --branch v0.2.1 https://github.com/carltonawong/sol-ultra-workaround.git`
+- Use the immutable `v0.2.2` release, not a moving branch. If an exact, clean
+  `v0.2.2` checkout is not already available, clone it with
+  `git clone --depth 1 --branch v0.2.2 https://github.com/carltonawong/sol-ultra-workaround.git`
   into a new temporary directory outside the original task workspace. Do not
   switch, clean, or otherwise modify a checkout that existed before the
   request, and do not pipe remote content directly into a shell.
@@ -56,20 +57,34 @@ mode.
    automatic target is one app-declared, dedicated project root that is not a
    filesystem root, the user's home, `$CODEX_HOME`, a broad directory holding
    multiple unrelated projects, or the downloaded package checkout.
-3. **Codex Desktop or IDE, unsafe or ambiguous root:** do not stop with a
-   generic explanation. Ask exactly one actionable question:
+3. **Codex Desktop, projectless task or unsafe/ambiguous root:** do not treat a
+   top-level **New task** as an activation mechanism. Ask exactly:
 
-   > SOL Ultra Workaround needs a dedicated Codex project. This task is rooted
-   > at `<path-or-roots>`, which cannot be scoped safely because `<reason>`.
-   > Which absolute project folder should I configure? Reply with a path, or
-   > say CANCEL.
+   > This Desktop task has no safe local project. A top-level New task cannot
+   > load SOL Ultra Workaround. Reply CREATE DEDICATED PROJECT to configure
+   > `<home>/SOL Ultra Tasks`, reply with an absolute existing project folder,
+   > or say CANCEL.
 
-   Do not invent or create a project folder. Validate the user's answer under
-   the same safety rules before continuing. A structured choice UI may be used
-   when the client exposes one, but the plain-text question must always work.
-4. **Unknown surface:** ask exactly: `Are you using Codex CLI, Desktop, or the
+   A structured choice UI may be used when the client exposes one, but the
+   plain-text question must always work.
+4. **`CREATE DEDICATED PROJECT`:** resolve `<home>/SOL Ultra Tasks` for the
+   current operating system. Create that directory only because the user chose
+   this explicit option. If it already exists and is non-empty, redirected, or
+   contains any `.codex` target, do not reuse, merge, clean, or delete it; ask
+   for another absolute path. After a safe creation, use `project` mode there.
+   Never edit the user's base config to mark it trusted. Report the normal
+   Desktop step: add or open the folder as a Local Project, trust it, and use
+   **New task** from inside that project.
+5. **Codex IDE, unsafe or ambiguous root:** ask exactly:
+
+   > This IDE task has no single safe workspace root. Which absolute folder or
+   > workspace root should I configure? Reply with a path, or say CANCEL.
+
+   Validate the answer under the same safety rules. Do not create a general
+   Desktop-style project unless the user explicitly requests one.
+6. **Unknown surface:** ask exactly: `Are you using Codex CLI, Desktop, or the
    IDE extension?` Then apply the matching rule above.
-5. An existing `.codex/config.toml` or `.codex/agents/default.toml` is a hard
+7. An existing `.codex/config.toml` or `.codex/agents/default.toml` is a hard
    conflict. Do not merge or overwrite it. Explain the exact conflicting path
    and ask for a different dedicated project only if that would still satisfy
    the user's request.
@@ -132,7 +147,11 @@ Keep the completion message short:
 - profile mode: say `codex --profile sol-ultra` for new tasks and
   `codex resume --profile sol-ultra <SESSION_ID_OR_NAME>` for an existing CLI
   task;
-- project mode: say to fully quit/restart Codex and open that project;
+- Desktop project mode: say to add or open the folder as a trusted Local
+  Project and create **New task** inside it; make clear that a top-level
+  projectless **New task** will not load the workaround;
+- IDE project mode: say to open and trust the configured folder, then start a
+  fresh task there;
 - recommend a new task on Codex 0.144 for the complete policy to load reliably.
 
 If this repository was cloned only for installation, remove the agent-created

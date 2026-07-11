@@ -221,5 +221,5 @@ if ($Mode -eq "profile") {
     Write-Host "Launch: codex --profile sol-ultra"
     Write-Host "Resume: codex resume --profile sol-ultra <SESSION_ID_OR_NAME>"
 } else {
-    Write-Host "Fully quit and restart Codex, then open the project: $resolvedProject"
+    Write-Host "Project mode: open and trust this folder or workspace, then create a new task inside it: $resolvedProject"
 }
