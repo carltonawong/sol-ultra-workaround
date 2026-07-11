@@ -5,8 +5,8 @@ subagent use more predictable.
 
 It gives an opt-in SOL Ultra root a Terra High default child, asks the root to
 keep delegation to three active children (four distinct children per turn at
-most), and asks it to send concise semantic handoffs instead of full-history
-forks.
+most), treats completed children as terminal, and asks it to send concise
+semantic handoffs instead of full-history forks.
 
 This is an unofficial configuration workaround, not a billing boundary or an
 OpenAI-supported quota control.
@@ -16,10 +16,10 @@ OpenAI-supported quota control.
 Send this one line from the Codex task you want to configure:
 
 ```text
-Install this release v0.3.0 for the Codex surface and project this task started in: https://github.com/carltonawong/sol-ultra-workaround
+Install this release v0.3.1 for the Codex surface and project this task started in: https://github.com/carltonawong/sol-ultra-workaround
 ```
 
-The install contract directs Codex to pin `v0.3.0`, read
+The install contract directs Codex to pin `v0.3.1`, read
 [`INSTALL.md`](INSTALL.md), and remember the original task location before
 using a temporary clone. CLI automatically gets the opt-in profile. Desktop
 automatically gets project mode when the task has one safe local project; a
@@ -70,15 +70,22 @@ Yes, on the child side, with two separate effects:
    for that assignment.
 
 In the real long-running task that motivated this workaround, 39 direct child
-rollouts were audited:
+rollouts were audited. Version 0.3.1 corrects the figures published in v0.3.0:
+the earlier audit added each rollout's final cumulative counter, but forked
+rollout files also contain copied parent counter history. The corrected method
+subtracts the cumulative baseline immediately before every triggered child
+turn, then sums only those child-turn deltas.
 
 | Recorded child activity | Result |
 | --- | ---: |
-| Children | 39 |
+| Direct children | 39 |
+| Actual child turns | 83 |
 | Model and reasoning | 39 x `gpt-5.6-sol`, `ultra` |
-| Cumulative input tokens | 4,860,010,375 |
-| Cached input tokens | 4,748,019,200 (97.7%) |
-| Output tokens | 13,563,958 |
+| Child-only input tokens | 168,248,551 |
+| Cached input tokens | 162,108,672 (96.35%) |
+| Uncached input tokens | 6,139,879 |
+| Output tokens | 905,034 |
+| Reasoning output | 319,387 (included in output) |
 
 At the published rate-card ratio, the same token mix on Terra would consume
 50% fewer child credits. That is a model-only inference, not a replay: Terra may
@@ -90,6 +97,55 @@ been isolated as a single percentage. The potential benefit grows with the
 size of the parent task and number of children. The SOL Ultra root still
 consumes SOL Ultra usage, and each child still carries its own system, tool,
 skill, and growing task context.
+
+A later 13-child implementation run exposed a separate routing issue and
+measured the workaround under real use:
+
+| Child-run activity | Result |
+| --- | ---: |
+| Child rollouts / actual turns | 13 / 19 |
+| Began on Terra High | 11 of 13 |
+| Stayed entirely on Terra High | 9 of 13 |
+| Terra High / SOL Ultra turns | 15 / 4 |
+| Child-only input tokens | 12,655,295 |
+| Cached input tokens | 11,524,352 (91.06%) |
+| Output tokens | 142,575 |
+
+Two full-history children ran entirely on SOL Ultra. Two other children began
+isolated on Terra High but silently changed to SOL Ultra when a completed child
+was triggered again. At the published token-credit rates, the
+observed mix was 36.47% lower credit-equivalent than the same recorded tokens
+all on SOL. If those two follow-up turns had stayed on Terra, the reduction
+would have been 47.25%. This is trace arithmetic, not an account-billing or
+five-hour-limit measurement, and the implementation tasks were not a
+controlled performance comparison.
+
+That task began before the final v0.3 managed policy was loaded into its root,
+so it is evidence of the runtime routing edge case and observed usage, not a
+clean v0.3.0 compliance test.
+
+Within that run, the two full-history children averaged 20,856.5 initial input
+tokens and the 11 isolated children averaged 16,080, a 22.9% smaller starting
+context. The samples did different work, and most full-history input was
+cached, so this is directional context evidence rather than a claim of 22.9%
+uncached-token or allowance savings.
+
+### Why completed children are now terminal
+
+Codex 0.144 does not expose a model or reasoning argument on the operation that
+re-triggers a completed child. In the run above, two such follow-ups reverted
+from Terra High to SOL Ultra. Version 0.3.1 therefore uses a fail-closed policy:
+
+- never call `followup_task`; each child receives only its initial turn;
+- refine only a currently running turn with a non-triggering message;
+- put later work in a fresh isolated default child;
+- reject any result whose rollout does not show Terra High, high reasoning,
+  isolated context, and exactly one triggered child turn.
+
+This is the strongest configuration-and-policy guard available in Codex 0.144,
+not a hard engine-level model lock. Internal collaboration operations cannot be
+intercepted by hooks, so a root that disobeys the policy can still cause drift;
+the independent rollout check is intended to prevent accepting that result.
 
 - [Official Codex pricing and token-credit rates](https://learn.chatgpt.com/docs/pricing#what-are-tokens-and-credits)
 - [Official Codex usage-limit explanation](https://learn.chatgpt.com/docs/pricing#what-are-the-usage-limits-for-my-plan)
@@ -259,6 +315,7 @@ default child:     gpt-5.6-terra / high
 requested tier:    default (not independently echoed in traces)
 V2 child fork:     fork_turns="none"
 V1 child fork:     fork_context=false
+child lifecycle:   one triggered turn; fresh child for later work
 V2 concurrency:   built-in root plus three active children
 policy ceiling:   three active; four distinct children per user turn
 nesting:          V1 depth one; V2 root-only-spawn policy is behavioral
@@ -280,14 +337,17 @@ below were exercised in scenarios):
 - building the semantic handoff;
 - root-only spawning and the V2 no-grandchildren rule;
 - no more than four distinct children per user turn;
+- treating a completed child as terminal and never using `followup_task` on it;
 - rejecting a child result until routing, high reasoning, and isolated context
-  are independently verified from runtime evidence, and stopping when that
-  evidence is unavailable;
+  plus exactly one triggered turn are independently verified from runtime
+  evidence, and stopping when that evidence is unavailable;
 - stopping for approval before SOL Ultra root takeover.
 
-Important: in Codex 0.144, a full-history spawn bypasses the custom role layer.
-The Terra routing therefore depends on the root following the non-full-fork
-instruction.
+Important: in Codex 0.144, a full-history spawn bypasses the custom role layer,
+and a completed-child follow-up can change back to SOL Ultra. Terra routing
+therefore depends on the root following both the non-full-fork and
+single-trigger instructions. The rollout verification fails closed after a
+mismatch; it cannot prevent the mismatched turn from having already run.
 
 ## Validation
 
@@ -297,6 +357,23 @@ archived its test threads. A test-only attempt to supply trust through the
 app-server persisted one dummy trust entry; cleanup removed that exact entry
 and revalidated the base config. The released installer never writes trust or
 edits the base config.
+
+### v0.3.1 single-trigger canary
+
+A fresh Codex CLI 0.144.0 SOL Ultra root performed two delegated checks in
+sequence. It waited for the first child to finish, verified that rollout, then
+created a distinct fresh child for the second check. Independent trace review
+confirmed:
+
+- the root recorded `gpt-5.6-sol` with `ultra` reasoning;
+- its trace contained two `spawn_agent` calls and zero `followup_task` calls;
+- both child traces recorded `gpt-5.6-terra`, `high`, and
+  `thread_source=subagent`;
+- each child trace contained exactly one `trigger_turn=true` event and no
+  inherited parent request.
+
+This exercises the completed-child replacement behavior. It remains a
+model-followed policy canary, not proof of a hard engine lock.
 
 ### Profile child-role isolation
 
@@ -348,7 +425,7 @@ official Desktop project flow.
 The one-prompt form is:
 
 ```text
-Uninstall this release v0.3.0 from the Codex surface and project this task started in, using the recorded managed-guidance state and without touching unrelated settings: https://github.com/carltonawong/sol-ultra-workaround
+Uninstall this release v0.3.1 from the Codex surface and project this task started in, using the recorded managed-guidance state and without touching unrelated settings: https://github.com/carltonawong/sol-ultra-workaround
 ```
 
 Profile mode:
@@ -374,8 +451,8 @@ Project mode:
 Uninstall verifies both TOML payloads and, in project mode, the installed
 guidance copy plus the managed-root-guidance state against hashes recorded in
 the local manifest. It refuses when state is missing or invalid, a payload hash
-does not match, or the installation is incomplete. Schema-1 installations must
-first be uninstalled; v0.3.0 does not perform an in-place schema upgrade. The
+does not match, or the installation is incomplete. Existing installations must
+first be uninstalled; v0.3.1 does not perform an in-place upgrade. The
 manifest is not a signature and does not defend
 against coordinated local edits. Schema-2 project uninstall restores its exact
 recorded backup when the active guidance is otherwise unchanged; otherwise it
@@ -420,8 +497,9 @@ sandbox, tools, and permissions unless the user restricts them further.
   child role.
 - Project-local config has higher precedence than a CLI profile and can replace
   the profile's agent declaration.
-- The approval gate, semantic handoff, root-only spawning, and runtime result
-  validation are model-followed policy. Hooks cannot enforce internal spawns.
+- The approval gate, semantic handoff, root-only spawning, single-turn child
+  lifecycle, and runtime result validation are model-followed policy. Hooks
+  cannot enforce internal spawns or completed-child follow-ups.
 - A failed Terra attempt followed by an approved SOL Ultra takeover can cost
   more than doing that task once on SOL; the stop exists so the user chooses.
 - Exact five-hour allowance savings remain unobservable from local traces.

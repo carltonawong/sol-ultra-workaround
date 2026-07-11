@@ -41,9 +41,14 @@ Assert-True ($configText.Contains('fork_turns="none"')) "config must require an 
 Assert-True (-not $configText.Contains('fork_turns="all"')) "config permits full-history V2 forks"
 Assert-True ($guidanceText.Contains('Only the active root may spawn')) "root-only spawn policy missing"
 Assert-True ($guidanceText.Contains('A child''s self-report is not evidence')) "root runtime check missing"
+Assert-True ($configText.Contains('Never call followup_task')) "config permits completed-child reuse"
+Assert-True ($guidanceText.Contains('Never call `followup_task`')) "guidance permits completed-child reuse"
+Assert-True ($guidanceText.Contains('exactly one triggered child turn')) "root single-turn verification missing"
 Assert-True ($agentText.Contains('CODEX_THREAD_ID')) "child rollout discovery recipe missing"
 Assert-True ($agentText.Contains('RUNTIME_OK model=gpt-5.6-terra effort=high isolated=true')) "success contract missing"
 Assert-True ($agentText.Contains('ROUTING_FAILURE')) "failure contract missing"
+Assert-True ($agentText.Contains('reason=completed_child_reuse')) "child reuse failure contract missing"
+Assert-True ($agentText.Contains('exactly one inter_agent_communication_metadata event')) "child single-turn verification missing"
 Assert-True (-not $agentText.Contains('RUNTIME_UNVERIFIED')) "runtime contract has a third state"
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) (
     "sol-ultra-smoke-" + [Guid]::NewGuid().ToString("N")

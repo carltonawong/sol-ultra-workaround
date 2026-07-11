@@ -22,9 +22,14 @@ grep -Fq 'fork_turns="none"' "$repo_root/profiles/sol-ultra.config.toml" || fail
 ! grep -Fq 'fork_turns="all"' "$repo_root/profiles/sol-ultra.config.toml" || fail "full-history V2 fork permitted"
 grep -Fq 'Only the active root may spawn' "$repo_root/profiles/sol-ultra.AGENTS.md" || fail "root-only spawn policy missing"
 grep -Fq "A child's self-report is not evidence" "$repo_root/profiles/sol-ultra.AGENTS.md" || fail "root runtime check missing"
+grep -Fq 'Never call followup_task' "$repo_root/profiles/sol-ultra.config.toml" || fail "config permits completed-child reuse"
+grep -Fq 'Never call `followup_task`' "$repo_root/profiles/sol-ultra.AGENTS.md" || fail "guidance permits completed-child reuse"
+grep -Fq 'exactly one triggered child turn' "$repo_root/profiles/sol-ultra.AGENTS.md" || fail "root single-turn verification missing"
 grep -Fq 'CODEX_THREAD_ID' "$repo_root/agents/terra-high.toml" || fail "child rollout discovery recipe missing"
 grep -Fq 'RUNTIME_OK model=gpt-5.6-terra effort=high isolated=true' "$repo_root/agents/terra-high.toml" || fail "success contract missing"
 grep -Fq 'ROUTING_FAILURE' "$repo_root/agents/terra-high.toml" || fail "failure contract missing"
+grep -Fq 'reason=completed_child_reuse' "$repo_root/agents/terra-high.toml" || fail "child reuse failure contract missing"
+grep -Fq 'exactly one inter_agent_communication_metadata event' "$repo_root/agents/terra-high.toml" || fail "child single-turn verification missing"
 ! grep -Fq 'RUNTIME_UNVERIFIED' "$repo_root/agents/terra-high.toml" || fail "runtime contract has a third state"
 
 # Profile mode must not create or modify global guidance.

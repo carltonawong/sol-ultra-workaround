@@ -30,9 +30,9 @@ opening/trusting the configured local project and starting a task inside it.
   using that recorded location for every target decision. Never infer the
   target from the temporary package checkout or the installer's working
   directory.
-- Use the immutable `v0.3.0` release, not a moving branch. If an exact, clean
-  `v0.3.0` checkout is not already available, clone it with
-  `git clone --depth 1 --branch v0.3.0 https://github.com/carltonawong/sol-ultra-workaround.git`
+- Use the immutable `v0.3.1` release, not a moving branch. If an exact, clean
+  `v0.3.1` checkout is not already available, clone it with
+  `git clone --depth 1 --branch v0.3.1 https://github.com/carltonawong/sol-ultra-workaround.git`
   into a new temporary directory outside the original task workspace. Do not
   switch, clean, or otherwise modify a checkout that existed before the
   request, and do not pipe remote content directly into a shell.
@@ -194,8 +194,8 @@ one-prompt uninstall from the tagged repository later.
 
 ## Uninstall requests
 
-Schema-1 installations must be uninstalled before installing v0.3.0; do not
-attempt an in-place schema upgrade.
+Existing installations must be uninstalled before installing v0.3.1; do not
+attempt an in-place upgrade.
 
 When the user asks to uninstall, choose the same surface-specific mode and run
 the shipped `uninstall.ps1` or `uninstall.sh`. Schema-2 project uninstall must
